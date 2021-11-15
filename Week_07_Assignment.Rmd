@@ -22,6 +22,7 @@ source(here::here("hw_functions.R"))
 
 1.  Describe some of the benefits of using functions.
 
+Functions can be used to make code more compact, readable, and reproducible, especially when an operation is repeated. Generalizing a particular operation with a function means ability to consistently repeat steps without typos/ordering errors for calculations, data cleaning, and data processing.
 
 
 2.  Practice turning the following code snippets into functions. Think about what each function does. What would you call it? How many arguments does it need? Can you rewrite it to be more expressive or less duplicative?
@@ -34,9 +35,46 @@ x / sum(x, na.rm = TRUE)
 sd(x, na.rm = TRUE) / mean(x, na.rm = TRUE)
 ```
 
+Each of these only needs one argument in the form of a vector. The first and third operations produce single summary numbers, while the second operation outputs a vector.
 ```{r}
+# fraction of entries with contents NA
+fraction_na <- function(field){
+  mean(is.na(field))
+}
+
+# fraction of the column total for each entry
+fraction_of_total <- function(field){
+  field / sum(field, na.rm = TRUE)
+}
+
+# ratio of column standard deviation to the column mean
+sd_mean_ratio <- function(field){
+  sd(field, na.rm = TRUE) / mean(field, na.rm = TRUE)
+}
+
+#Test data generation
+sample(1:100, 25, replace = T)  # generate radome 25 mumbers
+
+test_data  <- c(50, 31, 69, 22, 30, 72, 63, 44, 13, 31, 16, 50, NA, 56, 72, 65, 16, NA, 10, 93, 38, 14, 91, 53, 82, 91, 81)   # Copy 25-member list and insert 2 NAs; 27 total entries
+```
+Now that we defined functions, let's test...
+```{r}
+fraction_na(test_data)  # function
+2/27                    # expected value from test data
+
+fraction_of_total(test_data)
+
+sd_mean_ratio(test_data)
 
 ```
+`fraction_na` produces the expected result from the input data
+
+`fraction_of_total` produces a vector with each entry's fraction of the total 
+
+`sd_mean_ratio` produces a single value between 0 and 1, as expected. Based on the range of data, a standard deviation of approx half the mean is reasonable.
+
+The only repeated functionality within these operations is the `na.rm` argument; it's not clear to me whether the argument could be turned into a function or that doing so could generate more compact code in this case.
+
 
 
 3.  Read the source code for each of the following three functions, puzzle out what they do, and then brainstorm better names.
@@ -53,13 +91,51 @@ f3 <- function(x, y) {
   rep(y, length.out = length(x))
 }
 ```
+f1 --> repl_prefix
+f1 replaces the beginning of an input string with a specified prefix
 
+f2 --> drop_last
+f2 returns the vector without the last element, including a NULL where the length of the initial vector is 1.
 
+f3 --> trunc_fill
+f3 returns a vector in which the length of vector y is truncated or content of y is repeated to match the length of vector x.
 
 4.  Implement a fizzbuzz function. It takes a single number as input. If the number is divisible by three, it returns "fizz". If it's divisible by five it returns "buzz". If it's divisible by three and five, it returns "fizzbuzz". Otherwise, it returns the number. Make sure you first write working code before you create the function.
 
 ```{r}
+# establish function
 
+fizzbuzz <- function(num){
+      # is.integer() does not detect integer results
+      # is.wholenumber code from CRAN help file on Integer Vectors
+  is.wholenumber <-
+      function(x, tol = .Machine$double.eps^0.5)  abs(x - round(x)) < tol
+
+  #recursive if-else comparison
+  if(is.wholenumber(num/15)) {    # divisible by both 3 & 5 = divvisible by 15
+      print("fizzbuzz")
+  } else {
+    
+    if(is.wholenumber(num/5)) { # order of 3 & 5 comparison unimportant
+          print("buzz")
+      } else {
+
+        if(is.wholenumber(num/3)) {
+            print("fizz")
+          } else {
+            print(num)          # when all comparisons fail, print num
+          }
+       }
+  }
+}
+```
+```{r}
+# test function
+fizzbuzz(30)
+fizzbuzz(18)
+fizzbuzz(25)
+fizzbuzz(16)
+fizzbuzz(35.0000001)  # Decimal limit of is.wholenumber() with provided tolerance function; if more precision is needed, adjust tolerance. Note R only prints 5 decimal digits, and omits these if the decimal digits are all 0.
 ```
 
 
@@ -75,6 +151,15 @@ names_df <- map_df(files, ~read_name(.))
 
 Describe what the `read_name` function is doing.
 
+`read_name` as given in hw_functions.R is doing the following:
++ extracting year from the data file name by a 2-step process
++ creating a data frame by reading data from text files in specified path as CSV, assigning column headings
++ changing the year from a 4-digit number to a date corresponding to Jan 1 of that year
++ creating a rank column for each year based on the counts for ech gender
+
+
+
+
 6.  Create a function that allows a user to select a name (or names) and graph its trend over time.
 
 * If multiple names are selected, they should each be represented on the graph as a unique color.
@@ -82,11 +167,149 @@ Describe what the `read_name` function is doing.
 * The user should be able to indicate if they are interested in male names, female names, or either.
 
 ```{r}
+glimpse(names_df)
+
+# working example to build function
+names_df %>%
+  filter(name == "Mary"| name == "Ann") %>%   # this syntax proved important
+  filter(gender == "F" | gender == "M")  %>%  # vs using a c() style list
+  
+  group_by(year, name) %>%
+  mutate(count_total = sum(count)) %>%      # sum for M and F to avoid janky
+  ungroup() %>%
+  
+  ggplot(aes(x = year,
+             y = count_total,
+             color = name,
+             group = name)) +
+  geom_line() +
+  #scale_y_log10(labels = scales::comma) +
+  scale_y_continuous(labels = scales::comma) +
+  theme_minimal() +
+  theme(legend.position = "top",
+        axis.title = element_text(face = "bold"),
+        axis.text =  element_text(face = "italic"))  +
+  labs(color = "")
+```
+
+```{r}
+# sandbox
+ycolgen <- function(df, popularity){
+        if(popularity == "count")
+        mutate(df, yplotcol = sum(count))
+        else
+        mutate(df, yplotcol = max(rank))  
+      }
+
+names_df %>% 
+ycolgen(popularity = "count")
+
 
 ```
+
+```{r}
+#build function
+namesplot<- function(df, names, popularity = "count", single_gender = NULL){
+  
+# set function to filter gender
+    gender_filter <- function(df, single_gender){
+      if(is.null(single_gender)){
+      filter(df, gender == "F" | gender == "M")
+      } else {
+      filter(df, gender == single_gender) }
+    }
+    
+# setup sub-function to mutate ycol
+    # generate y col to plot
+    # sum or rankmax for M and F to avoid janky effect of 2 points per year
+    # calc has no effect on single-sex data
+
+     ycolgen <- function(df, popularity){
+        if(popularity == "count")
+        mutate(df, yplotcol = sum(count))
+        else
+        mutate(df, yplotcol = max(rank))  
+      }  
+  
+   #load data & start filtering
+    df %>%  
+      filter(name == {{names}})  %>%
+      gender_filter(single_gender)  %>% 
+
+
+    # generate y column
+      group_by(year, name) %>%
+      ycolgen({{popularity}})%>%
+      ungroup()  %>%
+  
+    
+  ggplot(aes(x = year,
+             y = yplotcol,
+             color = name,
+             group = name)) +
+  geom_line()  +
+  
+  scale_y_continuous(labels = scales::comma) + 
+
+  theme_minimal()  +
+  theme(legend.position = "top",
+        axis.title = element_text(face = "bold"),
+        axis.text =  element_text(face = "italic"))  +
+  labs(x = "",
+       y = popularity,
+       color = "")
+  
+  }
+
+```
+```{r}
+# test function -- one name
+names_df %>%
+namesplot("Ann", "rank", "F")
+```
+Requesting one name with all explicit arguments works!
+```{r}
+# test function -- one name, implicit arguments
+names_df %>%
+namesplot("Ann")   
+```
+Requesting one name with remaining arguments implicit works!
+```{r}
+# test function -- one name, implicit arguments
+names_df %>%
+namesplot("Howard")   
+```
+```{r}
+# test function -- more names
+names_df %>%
+namesplot(c("Ann","Mary"), "count", "F")   
+```
+Two names with all explicit arguments throws an error related to the names but appears to work.
+```{r}
+# test function -- more names
+names_df %>%
+namesplot(c("Ann","Mary"), "count")   
+```
+Combining multiple names with gender = NULL causes problems. Including "count" or leaving it as a blank default has no effect. 
+```{r}
+# test function -- more names
+names_df %>%
+namesplot(c("Ann","Mary"), "count", c("M","F"))   
+```
+```{r}
+# test function -- more names
+names_df %>%
+namesplot(c("Ann","Howard"), "count", c("M","F"))   
+```
+Explicitly saying we're looking for both M and F causes similar problems that seem to have a different shape.
+
+I think this goes back to the syntax `filter(field == "target1" | field == "target2" | ...)` that works best. It looks like it is variably generating OR or AND on these arguments (and maybe a stray NOR in there...) instead of looking for all instances of both items in the list. The NULL gender input was reasonable to code in ; however, unfortunately I was not able to track down how to generate this syntax within the function from the inputs. That's what I would try next; my guess is that it's probably an iterative regex lookup.
+
 
 
 7. Create a repository for your course project and share it with @rharrington31. Your project should include:
 
 * A `README.md` file
 * A script (whether it is a script or a markdown file) that successfully ingests your data for your analysis.
+
+The repository is at https://github.com/d-conner/NEH_grants
